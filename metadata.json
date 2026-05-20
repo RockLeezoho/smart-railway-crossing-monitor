@@ -1,0 +1,6 @@
+{
+  "name": "Smart Railway Crossing Monitor",
+  "description": "Hệ thống giám sát và quản lý lộ trình, trạng thái thanh chắn tàu hỏa thông minh thời gian thực kết hợp định vị GPS và cảm biến an toàn đường gác kỹ thuật.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
