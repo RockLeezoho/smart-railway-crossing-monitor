@@ -7,6 +7,7 @@ import CoordinateManager from './components/CoordinateManager';
 import { Coordinate, SensorStates, SimulationConfig } from './types';
 import { getDistanceMeters, getTrainPositionOnPath, MAP_PRESETS } from './utils';
 import { Layers, Sliders, MapPin, Cpu, Info, Check, HelpCircle } from 'lucide-react';
+import { fetchTrainStatus, fetchDeviceStatus, fetchSensorStatus, fetchCoordinates } from './services/api';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('map');
@@ -17,144 +18,84 @@ export default function App() {
   const [crossing, setCrossing] = useState<Coordinate>(MAP_PRESETS[0].crossing);
   const [b, setB] = useState<Coordinate>(MAP_PRESETS[0].b);
 
-  // Simulation speed & distance parameters
-  const [simulationConfig, setSimulationConfig] = useState<SimulationConfig>({
-    speedKmh: 50,
-    totalDistanceMeters: 1000, // resolved in useEffect below
-    currentProgressPct: 0,
-    isPlaying: false,
-    multiplier: 6,
-  });
 
-  // Calculate physical metrics dynamically on coordinate shift
+
+  // Backend Data States
+  const [trainData, setTrainData] = useState({ latitude: 0, longitude: 0, speed: 0, distanceToBarrier: 0 });
+  const [deviceData, setDeviceData] = useState({ ledRed: false, ledGreen: true, buzzer: false, lcd: 'Chờ kết nối', servo: 'UP' });
+  const [sensorData, setSensorData] = useState({ hallA: false, hallB: false });
+
+  // Polling backend
   useEffect(() => {
-    const distAtoCrossing = getDistanceMeters(a, crossing);
-    const distCrossingToB = getDistanceMeters(crossing, b);
-    setSimulationConfig((prev) => ({
-      ...prev,
-      totalDistanceMeters: distAtoCrossing + distCrossingToB,
-    }));
-  }, [a, crossing, b]);
+    const pollBackend = async () => {
+      try {
+        const [trainRes, devicesRes, sensorsRes, coordsRes] = await Promise.all([
+          fetchTrainStatus().catch(() => null),
+          fetchDeviceStatus().catch(() => null),
+          fetchSensorStatus().catch(() => null),
+          fetchCoordinates().catch(() => null)
+        ]);
 
-  const progress = simulationConfig.currentProgressPct / 100;
+        if (trainRes) setTrainData(trainRes);
+        if (devicesRes) setDeviceData(devicesRes);
+        if (sensorsRes) setSensorData(sensorsRes);
+        if (coordsRes) {
+          if (coordsRes.stationA?.latitude) setA({ lat: coordsRes.stationA.latitude, lng: coordsRes.stationA.longitude, name: 'Ga A' });
+          if (coordsRes.stationB?.latitude) setB({ lat: coordsRes.stationB.latitude, lng: coordsRes.stationB.longitude, name: 'Ga B' });
+          if (coordsRes.barrier?.latitude) setCrossing({ lat: coordsRes.barrier.latitude, lng: coordsRes.barrier.longitude, name: 'Đường Ngang' });
+        }
+      } catch (err) {
+        console.error('Error polling backend', err);
+      }
+    };
+
+    const interval = setInterval(pollBackend, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const progress = trainData.distanceToBarrier ? (getDistanceMeters(a, crossing) - trainData.distanceToBarrier) / (getDistanceMeters(a, crossing) + getDistanceMeters(crossing, b)) : 0;
   
-  // Interpolated Train coordinate position on route path
   const trainPos = useMemo(() => {
-    return getTrainPositionOnPath(a, crossing, b, progress);
-  }, [a, crossing, b, progress]);
-
-  // Spatial Distance metrics
-  const distanceToCrossing = useMemo(() => {
-    if (progress >= 0.5) return 0;
-    return getDistanceMeters(trainPos, crossing);
-  }, [trainPos, crossing, progress]);
-
-  const distanceToB = useMemo(() => {
-    if (progress >= 1) return 0;
-    if (progress < 0.5) {
-      return getDistanceMeters(trainPos, crossing) + getDistanceMeters(crossing, b);
+    if (trainData.latitude === 0 && trainData.longitude === 0) {
+      return getTrainPositionOnPath(a, crossing, b, 0);
     }
-    return getDistanceMeters(trainPos, b);
-  }, [trainPos, crossing, b, progress]);
+    return { lat: trainData.latitude, lng: trainData.longitude, name: 'Train SE1' };
+  }, [trainData, a, crossing, b]);
 
-  // Auto-calculated physical sensor simulation parameters
-  // Approach zone is 350 meters before crossing on segment A to Crossing
-  const isApproachingZone = progress > 0 && progress < 0.5 && distanceToCrossing <= 350;
-  // Crossing zone is immediately after crossing up to 5% progress
-  const isCrossingZone = progress >= 0.5 && progress < 0.56;
-
-  // Hall sensors triggers
-  const hallArriving = isApproachingZone;
-  const hallDeparting = isCrossingZone;
+  const distanceToCrossing = trainData.distanceToBarrier || 0;
+  const distanceToB = getDistanceMeters(trainPos, b);
 
   // Manual Override gates setup
   const [manualOverride, setManualOverride] = useState(false);
   const [manualBarrierPosition, setManualBarrierPosition] = useState(90); // default open
 
-  // Auto barrier calculations
-  const autoBarrierPosition = (isApproachingZone || isCrossingZone) ? 0 : 90;
-  const finalBarrierPosition = manualOverride ? manualBarrierPosition : autoBarrierPosition;
-
-  // LED lights active status
-  const ledRed = (isApproachingZone || isCrossingZone);
-  const ledGreen = !ledRed;
-
-  // Information LCD displays text
-  const lcdMessage = useMemo(() => {
-    if (progress === 0) {
-      return `${a.name.toUpperCase()} \nTRẠNG THÁI: CHỜ CHẠY`;
-    }
-    if (progress > 0 && progress < 0.3) {
-      return `TÀU SE1 KHỞI HÀNH\nKC CHẮN: ${Math.round(distanceToCrossing)} MÉT`;
-    }
-    if (isApproachingZone) {
-      return `CẢNH BÁO TÀU ĐẾN!\nHẠ CHẮN - CHÚ Ý NHÌN KIỂM`;
-    }
-    if (isCrossingZone) {
-      return `NGUY HIỂM: TÀU ĐANG QUA\nĐƯỜNG NGANG KHÓA`;
-    }
-    if (progress >= 0.56 && progress < 0.8) {
-      return `TÀU QUA AN TOÀN!\nĐÃ NÂNG RAO CHẮN TỰ ĐỘNG`;
-    }
-    if (progress === 1) {
-      return `HÀNH TRÌNH HOÀN TẤT\nTẦU SE1 ĐÃ CẬP ${b.name.toUpperCase()}`;
-    }
-    return `TÀU DI CHUYỂN VỀ B\nKC ĐÍCH: ${Math.round(distanceToB)} MÉT`;
-  }, [progress, distanceToCrossing, distanceToB, a, b, isApproachingZone, isCrossingZone]);
-
-  // Simulation Clock Tick Loop
-  useEffect(() => {
-    if (!simulationConfig.isPlaying) return;
-
-    const tickMs = 100;
-    const interval = setInterval(() => {
-      setSimulationConfig((prev) => {
-        if (prev.currentProgressPct >= 100) {
-          return {
-            ...prev,
-            currentProgressPct: 100,
-            isPlaying: false,
-          };
-        }
-
-        // speed * time
-        const speedMps = (prev.speedKmh * 1000) / 3600;
-        const progressDeltaMeters = speedMps * (tickMs / 1000) * prev.multiplier;
-        const progressPctDelta = (progressDeltaMeters / prev.totalDistanceMeters) * 100;
-        
-        const nextProgress = Math.min(100, prev.currentProgressPct + progressPctDelta);
-
-        return {
-          ...prev,
-          currentProgressPct: nextProgress,
-          isPlaying: nextProgress < 100,
-        };
-      });
-    }, tickMs);
-
-    return () => clearInterval(interval);
-  }, [simulationConfig.isPlaying, simulationConfig.speedKmh, simulationConfig.totalDistanceMeters, simulationConfig.multiplier]);
+  const finalBarrierPosition = manualOverride ? manualBarrierPosition : (deviceData.servo === 'DOWN' ? 0 : 90);
 
   // Reset helper
   const resetCrossingStates = () => {
     setManualOverride(false);
     setManualBarrierPosition(90);
-    setSimulationConfig(prev => ({
-      ...prev,
-      currentProgressPct: 0,
-      isPlaying: false
-    }));
   };
 
+  // Dummy out simulation config since we rely on backend now
+  const simulationConfig: SimulationConfig = {
+    speedKmh: trainData.speed || 0,
+    totalDistanceMeters: getDistanceMeters(a, crossing) + getDistanceMeters(crossing, b),
+    currentProgressPct: progress * 100,
+    isPlaying: true,
+    multiplier: 1,
+  };
+  const setSimulationConfig = () => {};
+
   const sensorStates: SensorStates = {
-    hallArriving,
-    hallDeparting,
-    ledRed,
-    ledGreen,
-    buzzerActive: finalBarrierPosition === 0 || ledRed,
+    hallArriving: sensorData.hallA,
+    hallDeparting: sensorData.hallB,
+    ledRed: deviceData.ledRed,
+    ledGreen: deviceData.ledGreen,
+    buzzerActive: deviceData.buzzer,
     barrierPosition: finalBarrierPosition,
     barrierManualOverride: manualOverride,
-    lcdMessage,
+    lcdMessage: deviceData.lcd,
   };
 
   return (
