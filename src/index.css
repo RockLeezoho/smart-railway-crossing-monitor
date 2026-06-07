@@ -23,3 +23,8 @@
   box-shadow: 0 0 12px rgba(16, 185, 129, 0.7);
 }
 
+.shadow-glow {
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.65);
+}
+
+

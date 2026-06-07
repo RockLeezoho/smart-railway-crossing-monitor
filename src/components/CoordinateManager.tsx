@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Coordinate, SimulationConfig } from '../types';
 import { MAP_PRESETS } from '../utils';
-import { Sliders, MapPin, Compass, Play, RotateCcw, Save } from 'lucide-react';
+import { Sliders, MapPin, Compass, Play, RotateCcw, Save, Link, Globe } from 'lucide-react';
+import { testApiConnection } from '../services/api';
 
 interface CoordinateManagerProps {
   a: Coordinate;
@@ -30,10 +31,34 @@ export default function CoordinateManager({
   const [localCrossing, setLocalCrossing] = useState(crossing);
   const [localB, setLocalB] = useState(b);
 
+  // API Server connection states
+  const [apiUrl, setApiUrl] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('API_BASE_URL') || '';
+    }
+    return '';
+  });
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
+
   const applyCoordinates = () => {
     setA(localA);
     setCrossing(localCrossing);
     setB(localB);
+  };
+
+  const handleSaveConnection = async () => {
+    setTestStatus('testing');
+    const cleanedUrl = apiUrl.trim();
+    // Test connectivity
+    const success = await testApiConnection(cleanedUrl);
+    if (success || cleanedUrl === '') {
+      localStorage.setItem('API_BASE_URL', cleanedUrl);
+      setTestStatus(cleanedUrl === '' ? 'idle' : 'success');
+    } else {
+      setTestStatus('failed');
+      // Still save to let them override if they wish, but keep warning badge
+      localStorage.setItem('API_BASE_URL', cleanedUrl);
+    }
   };
 
   const loadPreset = (presetId: string) => {
@@ -61,7 +86,61 @@ export default function CoordinateManager({
       <div className="flex items-center space-x-2 border-b border-slate-150 pb-3">
         <span className="text-xl">🛠️</span>
         <div>
-          <h3 className="text-sm font-bold text-slate-800 tracking-wide">QUẢN TRỊ TỌA ĐỘ VÀ ĐỊNH VỊ HÀNH TRÌNH</h3>
+          <h3 className="text-sm font-extrabold text-slate-800 tracking-wide uppercase">CẤU HÌNH THIẾT LẬP HỆ THỐNG</h3>
+        </div>
+      </div>
+
+      {/* 1. API Server Connection Panel */}
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm">
+        <div className="flex items-center space-x-2.5">
+          <Globe className="w-5 h-5 text-indigo-600" />
+          <div>
+            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">KẾT NỐI MÁY CHỦ TRUNG TÂM</h4>
+            <p className="text-[9px] text-slate-500 font-medium leading-tight mt-0.5">
+              Nhập IP máy tính khi chạy trên điện thoại thật (ví dụ: http://192.168.1.50:8080)
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex flex-col space-y-1">
+            <input
+              type="text"
+              value={apiUrl}
+              onChange={(e) => {
+                setApiUrl(e.target.value);
+                setTestStatus('idle');
+              }}
+              className="bg-white border border-slate-350 rounded-xl p-2.5 text-xs text-slate-800 font-mono shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none w-full"
+              placeholder="Đại chỉ IP Server (bỏ trống = localhost)"
+            />
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            {/* Status badge */}
+            <div className="text-[10px] font-bold font-mono">
+              {testStatus === 'idle' && (
+                <span className="text-slate-400">Chưa kiểm tra</span>
+              )}
+              {testStatus === 'testing' && (
+                <span className="text-indigo-650 animate-pulse">Checking...</span>
+              )}
+              {testStatus === 'success' && (
+                <span className="text-emerald-600">Đã kết nối máy chủ</span>
+              )}
+              {testStatus === 'failed' && (
+                <span className="text-rose-600 font-extrabold">Không có phản hồi</span>
+              )}
+            </div>
+
+            <button
+              onClick={handleSaveConnection}
+              disabled={testStatus === 'testing'}
+              className="bg-indigo-600 hover:bg-indigo-550 text-white font-extrabold text-[10px] uppercase px-4 py-2 rounded-xl transition shadow-sm cursor-pointer disabled:opacity-50"
+            >
+              Lưu & Kiểm Tra
+            </button>
+          </div>
         </div>
       </div>
 
@@ -73,127 +152,150 @@ export default function CoordinateManager({
             <button
               key={preset.id}
               onClick={() => loadPreset(preset.id)}
-              className="p-3 text-left bg-slate-50 hover:bg-slate-100 rounded-2xl border border-slate-200 active:border-indigo-505 transition-all flex flex-col justify-start shadow-sm"
+              className="p-3.5 text-left bg-slate-50 hover:bg-slate-100 rounded-2xl border border-slate-200 active:border-indigo-505 transition-all flex flex-col justify-start shadow-sm cursor-pointer"
             >
               <div className="flex items-center justify-between w-full">
                 <span className="text-xs font-bold text-indigo-600">{preset.label}</span>
-                <span className="text-[8.5px] font-bold font-mono text-emerald-650 tracking-wider"></span>
               </div>
-              <p className="text-[10.5px] text-slate-500 font-medium mt-1">{preset.description}</p>
+              <p className="text-[10.5px] text-slate-500 font-medium mt-1 leading-normal">{preset.description}</p>
             </button>
           ))}
         </div>
       </div>
 
       {/* Coordinate settings panel */}
-      <div className="space-y-3.5 bg-slate-50/80 p-4 rounded-2xl border border-slate-200">
+      <div className="space-y-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-extrabold text-slate-800">ĐIỀU CHỈNH TOẠ ĐỘ GPS ĐIỂM CỐ ĐỊNH</span>
+          <span className="text-xs font-extrabold text-slate-800 uppercase">ĐIỀU CHỈNH GPS ĐIỂM CỐ ĐỊNH</span>
           <button
             onClick={applyCoordinates}
-            className="flex items-center space-x-1 bg-indigo-600  text-white font-bold text-[10px] uppercase px-3 py-1.5 rounded-lg transition shadow-sm"
+            className="flex items-center space-x-1 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[9.5px] uppercase px-3.5 py-2 rounded-xl transition shadow-sm cursor-pointer"
           >
             <Save className="w-3.5 h-3.5" />
-            <span>Cập nhật Bản Đồ</span>
+            <span>Lưu Tọa Độ</span>
           </button>
         </div>
 
-        {/* Station A Input Row */}
-        <div className="space-y-1">
-          <label className="text-[10px] font-semibold text-slate-600 flex items-center space-x-1.5">
+        {/* Station A Input Stacked */}
+        <div className="space-y-1.5 border-b border-slate-200/80 pb-3 last:border-0 last:pb-0">
+          <label className="text-[10px] font-semibold text-slate-650 flex items-center space-x-1.5">
             <span className="w-2.5 h-2.5 bg-indigo-500 rounded-full inline-block" />
-            <span>Ga Đầu Khởi Hành (Ga A):</span>
+            <span className="font-bold">Ga Đầu Khởi Hành (Ga A):</span>
           </label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-2">
             <input
               type="text"
               value={localA.name}
               onChange={(e) => setLocalA({ ...localA, name: e.target.value })}
-              className="bg-white border border-slate-300 rounded-lg p-1.5 text-xs text-slate-800 shadow-sm focus:border-indigo-500 outline-none"
+              className="w-full bg-white border border-slate-350 rounded-xl p-2.5 text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
               placeholder="Tên ga A"
             />
-            <input
-              type="number"
-              value={localA.lat}
-              onChange={(e) => setLocalA({ ...localA, lat: parseFloat(e.target.value) || 0 })}
-              className="bg-white border border-slate-300 rounded-lg p-1.5 text-xs text-indigo-650 font-semibold font-mono shadow-sm"
-              step="0.0001"
-              placeholder="Latitude"
-            />
-            <input
-              type="number"
-              value={localA.lng}
-              onChange={(e) => setLocalA({ ...localA, lng: parseFloat(e.target.value) || 0 })}
-              className="bg-white border border-slate-300 rounded-lg p-1.5 text-xs text-indigo-650 font-semibold font-mono shadow-sm"
-              step="0.0001"
-              placeholder="Longitude"
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[9px] font-mono text-slate-400 font-bold">LAT:</span>
+                <input
+                  type="number"
+                  value={localA.lat}
+                  onChange={(e) => setLocalA({ ...localA, lat: parseFloat(e.target.value) || 0 })}
+                  className="w-full bg-white border border-slate-350 rounded-xl pl-9 pr-2 py-2 text-xs text-indigo-650 font-semibold font-mono shadow-sm focus:border-indigo-500 outline-none"
+                  step="0.000001"
+                  placeholder="Vĩ độ"
+                />
+              </div>
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[9px] font-mono text-slate-400 font-bold">LNG:</span>
+                <input
+                  type="number"
+                  value={localA.lng}
+                  onChange={(e) => setLocalA({ ...localA, lng: parseFloat(e.target.value) || 0 })}
+                  className="w-full bg-white border border-slate-350 rounded-xl pl-9 pr-2 py-2 text-xs text-indigo-650 font-semibold font-mono shadow-sm focus:border-indigo-500 outline-none"
+                  step="0.000001"
+                  placeholder="Kinh độ"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Barrier Crossing Input Row */}
-        <div className="space-y-1">
-          <label className="text-[10px] font-semibold text-slate-600 flex items-center space-x-1.5">
+        {/* Barrier Crossing Input Stacked */}
+        <div className="space-y-1.5 border-b border-slate-200/80 pb-3 last:border-0 last:pb-0">
+          <label className="text-[10px] font-semibold text-slate-650 flex items-center space-x-1.5">
             <span className="w-2.5 h-2.5 bg-rose-500 rounded-full inline-block" />
-            <span>Giao Lộ Rào Chắn:</span>
+            <span className="font-bold">Giao Lộ Rào Chắn:</span>
           </label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-2">
             <input
               type="text"
               value={localCrossing.name}
               onChange={(e) => setLocalCrossing({ ...localCrossing, name: e.target.value })}
-              className="bg-white border border-slate-300 rounded-lg p-1.5 text-xs text-slate-800 shadow-sm focus:border-indigo-500 outline-none"
-              placeholder="Tên nút giao"
+              className="w-full bg-white border border-slate-350 rounded-xl p-2.5 text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+              placeholder="Tên rào chắn"
             />
-            <input
-              type="number"
-              value={localCrossing.lat}
-              onChange={(e) => setLocalCrossing({ ...localCrossing, lat: parseFloat(e.target.value) || 0 })}
-              className="bg-white border border-slate-300 rounded-lg p-1.5 text-xs text-indigo-650 font-semibold font-mono shadow-sm"
-              step="0.0001"
-              placeholder="Latitude"
-            />
-            <input
-              type="number"
-              value={localCrossing.lng}
-              onChange={(e) => setLocalCrossing({ ...localCrossing, lng: parseFloat(e.target.value) || 0 })}
-              className="bg-white border border-slate-300 rounded-lg p-1.5 text-xs text-indigo-650 font-semibold font-mono shadow-sm"
-              step="0.0001"
-              placeholder="Longitude"
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[9px] font-mono text-slate-400 font-bold">LAT:</span>
+                <input
+                  type="number"
+                  value={localCrossing.lat}
+                  onChange={(e) => setLocalCrossing({ ...localCrossing, lat: parseFloat(e.target.value) || 0 })}
+                  className="w-full bg-white border border-slate-350 rounded-xl pl-9 pr-2 py-2 text-xs text-indigo-650 font-semibold font-mono shadow-sm focus:border-indigo-500 outline-none"
+                  step="0.000001"
+                  placeholder="Vĩ độ"
+                />
+              </div>
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[9px] font-mono text-slate-400 font-bold">LNG:</span>
+                <input
+                  type="number"
+                  value={localCrossing.lng}
+                  onChange={(e) => setLocalCrossing({ ...localCrossing, lng: parseFloat(e.target.value) || 0 })}
+                  className="w-full bg-white border border-slate-350 rounded-xl pl-9 pr-2 py-2 text-xs text-indigo-650 font-semibold font-mono shadow-sm focus:border-indigo-500 outline-none"
+                  step="0.000001"
+                  placeholder="Kinh độ"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Station B Input Row */}
-        <div className="space-y-1">
-          <label className="text-[10px] font-semibold text-slate-600 flex items-center space-x-1.5">
+        {/* Station B Input Stacked */}
+        <div className="space-y-1.5 pb-1">
+          <label className="text-[10px] font-semibold text-slate-650 flex items-center space-x-1.5">
             <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full inline-block" />
-            <span>Ga Cuối Đích Đến (Ga B):</span>
+            <span className="font-bold">Ga Cuối Đích Đến (Ga B):</span>
           </label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-2">
             <input
               type="text"
               value={localB.name}
               onChange={(e) => setLocalB({ ...localB, name: e.target.value })}
-              className="bg-white border border-slate-300 rounded-lg p-1.5 text-xs text-slate-800 shadow-sm focus:border-indigo-500 outline-none"
+              className="w-full bg-white border border-slate-350 rounded-xl p-2.5 text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
               placeholder="Tên ga B"
             />
-            <input
-              type="number"
-              value={localB.lat}
-              onChange={(e) => setLocalB({ ...localB, lat: parseFloat(e.target.value) || 0 })}
-              className="bg-white border border-slate-300 rounded-lg p-1.5 text-xs text-indigo-650 font-semibold font-mono shadow-sm"
-              step="0.0001"
-              placeholder="Latitude"
-            />
-            <input
-              type="number"
-              value={localB.lng}
-              onChange={(e) => setLocalB({ ...localB, lng: parseFloat(e.target.value) || 0 })}
-              className="bg-white border border-slate-300 rounded-lg p-1.5 text-xs text-indigo-650 font-semibold font-mono shadow-sm"
-              step="0.0001"
-              placeholder="Longitude"
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[9px] font-mono text-slate-400 font-bold">LAT:</span>
+                <input
+                  type="number"
+                  value={localB.lat}
+                  onChange={(e) => setLocalB({ ...localB, lat: parseFloat(e.target.value) || 0 })}
+                  className="w-full bg-white border border-slate-350 rounded-xl pl-9 pr-2 py-2 text-xs text-indigo-650 font-semibold font-mono shadow-sm focus:border-indigo-500 outline-none"
+                  step="0.000001"
+                  placeholder="Vĩ độ"
+                />
+              </div>
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[9px] font-mono text-slate-400 font-bold">LNG:</span>
+                <input
+                  type="number"
+                  value={localB.lng}
+                  onChange={(e) => setLocalB({ ...localB, lng: parseFloat(e.target.value) || 0 })}
+                  className="w-full bg-white border border-slate-350 rounded-xl pl-9 pr-2 py-2 text-xs text-indigo-650 font-semibold font-mono shadow-sm focus:border-indigo-500 outline-none"
+                  step="0.000001"
+                  placeholder="Kinh độ"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -202,12 +304,12 @@ export default function CoordinateManager({
       <div className="bg-slate-50 border border-slate-200 p-4.5 rounded-2xl space-y-4 shadow-sm">
         <div>
           <span className="text-xs font-bold text-slate-800 block">THỬ NGHIỆM GHI ĐÈ VỊ TRÍ HÀNH TRÌNH</span>
-          <span className="text-[10px] text-slate-500">Giả lập tọa độ tàu trực tiếp để kiểm định liên động thiết bị bảo an ngang đường</span>
+          <span className="text-[10px] text-slate-500 font-medium">Giả lập tọa độ tàu trực tiếp để kiểm định liên động thiết bị bảo an ngang đường</span>
         </div>
 
-        {/* Slider for Current Progress Pct */}
+        {/* Slider for Progress */}
         <div className="space-y-1">
-          <div className="flex justify-between text-xs font-mono font-semibold text-slate-500">
+          <div className="flex justify-between text-[10px] font-mono font-semibold text-slate-500">
             <span>Khởi Điểm (0%)</span>
             <span className="text-indigo-650 font-black">{simulationConfig.currentProgressPct.toFixed(1)}% hành trình</span>
             <span>Ga Đích (100%)</span>
@@ -222,18 +324,18 @@ export default function CoordinateManager({
               setSimulationConfig(prev => ({
                 ...prev,
                 currentProgressPct: parseFloat(e.target.value) || 0,
-                isPlaying: false // pause auto-sim so manual slider overrides correctly
+                isPlaying: false
               }));
             }}
-            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-650"
+            className="w-full h-2 bg-slate-250 rounded-lg appearance-none cursor-pointer accent-indigo-600"
           />
         </div>
 
         {/* Speed Tuning Sliders */}
-        <div className="space-y-3 pt-2.5 border-t border-slate-200">
+        <div className="space-y-3.5 pt-3.5 border-t border-slate-200">
           {/* Real Speed Kmh */}
           <div className="space-y-1">
-            <div className="flex justify-between text-xs font-mono">
+            <div className="flex justify-between text-[10px] font-mono font-semibold">
               <span className="text-slate-500">Vận tốc di chuyển thực tế:</span>
               <span className="text-emerald-700 font-extrabold">{simulationConfig.speedKmh} km/h</span>
             </div>
@@ -255,7 +357,7 @@ export default function CoordinateManager({
 
           {/* Speed Multiplier for System acceleration */}
           <div className="space-y-1">
-            <div className="flex justify-between text-xs font-mono">
+            <div className="flex justify-between text-[10px] font-mono font-semibold">
               <span className="text-slate-500">Tốc độ cập nhật GPS:</span>
               <span className="text-indigo-650 font-extrabold">x{simulationConfig.multiplier} lần</span>
             </div>
@@ -271,7 +373,7 @@ export default function CoordinateManager({
                   multiplier: parseInt(e.target.value) || 1
                 }));
               }}
-              className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+              className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-650"
             />
           </div>
         </div>

@@ -112,7 +112,7 @@ export default function RouteTracker({
           {/* Reset button */}
           <button
             onClick={() => setSimulationConfig(prev => ({ ...prev, currentProgressPct: 0, isPlaying: false }))}
-            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-250 text-slate-700 border border-slate-300 transition"
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition cursor-pointer"
             title="Reset về vạch xuất phát A"
           >
             <RotateCcw className="w-4 h-4" />
@@ -164,19 +164,19 @@ export default function RouteTracker({
 
           {/* Station A Pin */}
           <div className="absolute left-0 top-1/2 -translate-y-1/2 flex flex-col items-center">
-            <div className={`w-3.5 h-3.5 rounded-full border-2 ${progress >= 0 ? 'bg-indigo-600 border-indigo-300 shadow-glow' : 'bg-slate-200 border-slate-350'}`} />
+            <div className={`w-3.5 h-3.5 rounded-full border-2 ${progress >= 0 ? 'bg-indigo-600 border-indigo-300 shadow-glow' : 'bg-slate-200 border-slate-300'}`} />
             <span className="text-[10px] mt-1.5 font-bold text-slate-600">Ga A</span>
           </div>
 
           {/* Crossing Pin */}
           <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 flex flex-col items-center">
-            <div className={`w-3.5 h-3.5 rounded-full border-2 ${progress >= 0.5 ? 'bg-amber-500 border-amber-300 shadow-glow' : 'bg-slate-200 border-slate-350'}`} />
+            <div className={`w-3.5 h-3.5 rounded-full border-2 ${progress >= 0.5 ? 'bg-amber-500 border-amber-300 shadow-glow' : 'bg-slate-200 border-slate-300'}`} />
             <span className="text-[10px] mt-1.5 font-bold text-slate-600">Chắn</span>
           </div>
 
           {/* Station B Pin */}
           <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-center font-bold">
-            <div className={`w-3.5 h-3.5 rounded-full border-2 ${progress >= 1.0 ? 'bg-emerald-500 border-emerald-300 shadow-glow' : 'bg-slate-200 border-slate-350'}`} />
+            <div className={`w-3.5 h-3.5 rounded-full border-2 ${progress >= 1.0 ? 'bg-emerald-500 border-emerald-300 shadow-glow' : 'bg-slate-200 border-slate-300'}`} />
             <span className="text-[10px] mt-1.5 font-bold text-slate-600">Ga B</span>
           </div>
         </div>
@@ -188,7 +188,7 @@ export default function RouteTracker({
           ? 'bg-rose-50 border-rose-200 text-rose-800'
           : notificationMsg.type === 'warning'
           ? 'bg-amber-50 border-amber-200 text-amber-800'
-          : 'bg-indigo-50 border-indigo-250 text-indigo-850'
+          : 'bg-indigo-50 border-indigo-200 text-indigo-800'
       }`}>
         <div className="mt-0.5">
           {notificationMsg.type === 'danger' && <ShieldAlert className="w-5 h-5 text-rose-600" />}

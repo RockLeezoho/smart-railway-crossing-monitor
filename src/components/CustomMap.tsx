@@ -90,21 +90,38 @@ export default function CustomMap({
         <span>GPS MONITORING • 50m</span>
       </div>
 
-      {/* Sensor Range Indicator (Radar pulse around Crossing) */}
-      {sensorStates.hallArriving && (
-        <div 
-          className="absolute rounded-full border-2 border-rose-500/30 bg-rose-500/10 animate-ping"
-          style={{
-            left: `${ptCrossing.x}px`,
-            top: `${ptCrossing.y}px`,
-            width: '60px',
-            height: '60px',
-            transform: 'translate(-50%, -50%)',
-          }}
-        />
-      )}
+      <svg 
+        viewBox="0 0 360 300" 
+        preserveAspectRatio="none" 
+        className="absolute inset-0 w-full h-full z-10 pointer-events-none"
+      >
+        <style>{`
+          @keyframes ping-svg {
+            0% {
+              r: 6px;
+              opacity: 0.9;
+              stroke-width: 1.5;
+            }
+            100% {
+              r: 32px;
+              opacity: 0;
+              stroke-width: 0.5;
+            }
+          }
+          .animate-ping-svg {
+            animation: ping-svg 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+          }
+        `}</style>
 
-      <svg className="absolute inset-0 w-full h-full z-10 pointer-events-none">
+        {/* Sensor Range Indicator (Radar pulse around Crossing) */}
+        {sensorStates.hallArriving && (
+          <circle
+            cx={ptCrossing.x}
+            cy={ptCrossing.y}
+            className="fill-rose-500/10 stroke-rose-500/40 animate-ping-svg"
+          />
+        )}
+
         <defs>
           {/* Visual glow filters */}
           <filter id="glow-red" x="-20%" y="-20%" width="140%" height="140%">

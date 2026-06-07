@@ -6,19 +6,39 @@ import ManualControls from './components/ManualControls';
 import CoordinateManager from './components/CoordinateManager';
 import { Coordinate, SensorStates, SimulationConfig } from './types';
 import { getDistanceMeters, getTrainPositionOnPath, MAP_PRESETS } from './utils';
-import { Layers, Sliders, MapPin, Cpu, Info, Check, HelpCircle } from 'lucide-react';
+import { Layers, Sliders, MapPin, Cpu, Info, Check, HelpCircle, LogOut } from 'lucide-react';
 import { fetchTrainStatus, fetchDeviceStatus, fetchSensorStatus, fetchCoordinates } from './services/api';
+import AuthScreen from './components/AuthScreen';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('map');
   const [isMockFrame, setIsMockFrame] = useState(true);
+  const [isOnline, setIsOnline] = useState(false);
+
+  // Session State
+  const [user, setUser] = useState<{ token: string; username: string; displayName: string } | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('AUTH_USER');
+      return saved ? JSON.parse(saved) : null;
+    }
+    return null;
+  });
+
+  const handleAuthSuccess = (userData: { token: string; username: string; displayName: string }) => {
+    localStorage.setItem('AUTH_USER', JSON.stringify(userData));
+    setUser(userData);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('AUTH_USER');
+    setUser(null);
+  };
+
 
   // States for spatial coordinates of Stations & Crossing
   const [a, setA] = useState<Coordinate>(MAP_PRESETS[0].a);
   const [crossing, setCrossing] = useState<Coordinate>(MAP_PRESETS[0].crossing);
   const [b, setB] = useState<Coordinate>(MAP_PRESETS[0].b);
-
-
 
   // Backend Data States
   const [trainData, setTrainData] = useState({ latitude: 0, longitude: 0, speed: 0, distanceToBarrier: 0 });
@@ -36,6 +56,9 @@ export default function App() {
           fetchCoordinates().catch(() => null)
         ]);
 
+        const online = !!(trainRes || devicesRes || sensorsRes || coordsRes);
+        setIsOnline(online);
+
         if (trainRes) setTrainData(trainRes);
         if (devicesRes) setDeviceData(devicesRes);
         if (sensorsRes) setSensorData(sensorsRes);
@@ -46,10 +69,12 @@ export default function App() {
         }
       } catch (err) {
         console.error('Error polling backend', err);
+        setIsOnline(false);
       }
     };
 
-    const interval = setInterval(pollBackend, 1000);
+    const interval = setInterval(pollBackend, 1050);
+    pollBackend(); // immediate call on mount
     return () => clearInterval(interval);
   }, []);
 
@@ -98,6 +123,11 @@ export default function App() {
     lcdMessage: deviceData.lcd,
   };
 
+  // If not logged in, intercept rendering and show AuthScreen
+  if (!user) {
+    return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
+  }
+
   return (
     <AndroidFrame
       activeTab={activeTab}
@@ -121,11 +151,32 @@ export default function App() {
                 {activeTab === 'barrier' && 'An Toàn Rào Chắn'}
                 {activeTab === 'config' && 'CẤU HÌNH ĐỊNH VỊ TOẠ ĐỘ'}
               </h2>
+              <p className="text-[10px] text-slate-500 font-bold">
+                Xin chào, <span className="text-indigo-650 font-black">{user.displayName}</span>
+              </p>
             </div>
           </div>
 
-          <div className="bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg text-[9px] font-mono text-emerald-700 font-bold animate-pulse">
-            ONLINE
+          <div className="flex items-center space-x-2">
+            {isOnline ? (
+              <div className="bg-emerald-50 border border-emerald-250 px-2 py-1 rounded-lg text-[9px] font-mono text-emerald-700 font-bold flex items-center space-x-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                <span>KẾT NỐI</span>
+              </div>
+            ) : (
+              <div className="bg-rose-50 border border-rose-250 px-2 py-1 rounded-lg text-[9px] font-mono text-rose-750 font-bold flex items-center space-x-1 animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                <span>MẤT KẾT NỐI</span>
+              </div>
+            )}
+
+            <button
+              onClick={handleLogout}
+              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-650 hover:text-rose-600 rounded-lg border border-slate-200 transition cursor-pointer"
+              title="Đăng xuất"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
